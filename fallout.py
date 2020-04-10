@@ -1,6 +1,5 @@
 # coding: utf-8
 import argparse
-import datetime
 import httpx
 import logging
 import os
@@ -8,7 +7,8 @@ import peewee as pw
 import re
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
+from dateutil.parser import parse as parse_date
 from discord import utils
 from discord.ext import commands
 
@@ -18,7 +18,7 @@ DISCORD_OPERATOR = OP = os.environ.get('DISCORD_OPERATOR') or '!'
 DISCORD_ROLE = ROLE = os.environ.get('DISCORD_ROLE') or 'MJ'
 FALLOUT_TOKEN = os.environ.get('FALLOUT_TOKEN')
 FALLOUT_URL = os.environ.get('FALLOUT_URL')
-FALLOUT_DATE = os.environ.get('FALLOUT_DATE')
+FALLOUT_DATE = parse_date(os.environ.get('FALLOUT_DATE') or datetime.utcnow().isoformat(), dayfirst=True)
 FALLOUT_CAMPAIGN = int(os.environ.get('FALLOUT_CAMPAIGN') or 0)
 
 REGEX_FLAGS = re.IGNORECASE | re.MULTILINE
@@ -282,9 +282,11 @@ class Fallout(commands.Cog):
             await new_channel.set_permissions(everyone, read_messages=False)
         _old_channel, _new_channel = (
             await self.get_channel(ctx.channel, user), await self.get_channel(args.channel, user))
-        if not User.select().where(User.channel_id == _new_channel).count():
+        if not User.select().where(User.channel_id == _new_channel).count() and _new_channel.date != _old_channel.date:
             _new_channel.date = _old_channel.date
             _new_channel.save(only=('date',))
+            await self.request(f'campaign/{_new_channel.campaign_id}/', method='patch', data=dict(
+                start_game_date=_new_channel.date, current_game_date=_new_channel.date))
         for player_name in args.players:
             player = await self.get_user(player_name)
             if player and player.channel_id:
@@ -640,7 +642,7 @@ class Fallout(commands.Cog):
         data = dict(
             name=user.name,
             player=user.player_id,
-            campaign=FALLOUT_CAMPAIGN or datetime.datetime.now(),
+            campaign=FALLOUT_CAMPAIGN,
             is_player=True,
             has_stats=True,
             has_needs=True,
@@ -649,7 +651,7 @@ class Fallout(commands.Cog):
         if ret is None:
             return
         user.character_id = ret['id']
-        user.save(only=('character_id', ))
+        user.save(only=('character_id',))
         return user
 
     async def get_user(self, user):
@@ -659,10 +661,7 @@ class Fallout(commands.Cog):
                 if not creature:
                     ret = await self.request(f'character/{user}/')
                     if ret:
-                        creature = Creature(
-                            name=ret['name'],
-                            character_id=ret['id'],
-                            campaign_id=ret['campaign'])
+                        creature = Creature(name=ret['name'], character_id=ret['id'], campaign_id=ret['campaign'])
                         self.creatures[user] = creature
                 return creature
             user_id = self.extract_id(user)
@@ -679,10 +678,10 @@ class Fallout(commands.Cog):
             ret = await self.request('player/', method='post', data=dict(
                 username=_user.id, nickname=_user.name, password=uuid.uuid4().hex))
             _user.player_id = ret['id']
-            _user.save(only=('player_id', ))
+            _user.save(only=('player_id',))
         if (user.nick or user.name) != _user.name:
             _user.name = user.nick or user.name
-            _user.save(only=('name', ))
+            _user.save(only=('name',))
             if _user.player_id:
                 await self.request(f'player/{_user.player_id}/', method='patch', data=dict(nickname=_user.name))
             if _user.character_id:
@@ -703,16 +702,21 @@ class Fallout(commands.Cog):
         _channel = self.channels.get(channel.id)
         if not _channel:
             _channel, created = Channel.get_or_create(
-                id=channel.id, defaults=dict(name=channel.name, date=FALLOUT_DATE or None))
+                id=channel.id, defaults=dict(name=channel.name, date=FALLOUT_DATE))
         channel_name = channel.name.replace('-', ' ').replace('_', ' ').title()
         if not _channel.campaign_id:
             ret = await self.request('campaign/', method='post', data=dict(
-                name=channel_name, game_master=user.player_id if user else None))
+                name=channel_name, game_master=user.player_id if user else None,
+                start_game_date=FALLOUT_DATE, current_game_date=FALLOUT_DATE))
             _channel.campaign_id = ret['id']
-            _channel.save(only=('campaign_id', ))
+            _channel.save(only=('campaign_id',))
+        else:
+            ret = await self.request(f'campaign/{_channel.campaign_id}/', method='get')
+            _channel.date = parse_date(ret['current_game_time'])
+            _channel.save(only=('date',))
         if _channel.name != channel.name:
             _channel.name = channel.name
-            user.save(only=('name', ))
+            _channel.save(only=('name',))
             await self.request(f'campaign/{_channel.campaign_id}/', method='patch', data=dict(name=channel_name))
         _channel.channel = channel
         self.channels[_channel.id] = _channel
