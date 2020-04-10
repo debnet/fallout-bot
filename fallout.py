@@ -19,7 +19,7 @@ DISCORD_ROLE = ROLE = os.environ.get('DISCORD_ROLE') or 'MJ'
 FALLOUT_TOKEN = os.environ.get('FALLOUT_TOKEN')
 FALLOUT_URL = os.environ.get('FALLOUT_URL')
 FALLOUT_DATE = parse_date(os.environ.get('FALLOUT_DATE') or datetime.utcnow().isoformat(), dayfirst=True)
-FALLOUT_CAMPAIGN = int(os.environ.get('FALLOUT_CAMPAIGN') or 0)
+FALLOUT_CAMPAIGN = int(os.environ.get('FALLOUT_CAMPAIGN') or 0) or None
 
 REGEX_FLAGS = re.IGNORECASE | re.MULTILINE
 
@@ -40,6 +40,7 @@ db = pw.SqliteDatabase('fallout.db')
 class Channel(pw.Model):
     id = pw.BigIntegerField(primary_key=True)
     name = pw.CharField()
+    topic = pw.TextField(null=True)
     campaign_id = pw.IntegerField(null=True)
     date = pw.DateTimeField(null=True)
 
@@ -61,6 +62,7 @@ class User(pw.Model):
 
 @dataclass
 class Creature:
+    id: int
     name: str
     character_id: int
     campaign_id: int
@@ -245,8 +247,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
-    async def url(self, ctx, *args):
+    async def link(self, ctx, *args):
         await ctx.message.delete()
         user = await self.get_user(ctx.author)
         if not user or not user.player_id:
@@ -269,24 +270,30 @@ class Fallout(commands.Cog):
             description="Déplace un ou plusieurs joueurs dans un autre canal.")
         parser.add_argument('channel', type=str, help="Nom du canal de destination")
         parser.add_argument('players', metavar='player', type=str, nargs='+', help="Nom du joueur")
+        parser.add_argument('--topic', '-t', type=str, help="Description du canal")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
             return
 
-        everyone = utils.get(ctx.channel.guild.roles, name='@everyone')
-        args.channel = args.channel[1:] if args.channel.startswith('#') else args.channel
-        new_channel = utils.get(ctx.channel.guild.text_channels, name=args.channel, category=ctx.channel.category)
-        if not new_channel:
-            new_channel = await ctx.channel.guild.create_text_channel(args.channel, category=ctx.channel.category)
-            await new_channel.set_permissions(everyone, read_messages=False)
+        channel_id = self.extract_id(args.channel)
+        if not channel_id:
+            channel_name = args.channel.lower().replace('#', '').replace(' ', '-').replace('_', '-')
+            new_channel = utils.get(ctx.channel.guild.text_channels, name=channel_name, category=ctx.channel.category)
+            if not new_channel:
+                new_channel = await ctx.channel.guild.create_text_channel(
+                    args.channel, category=ctx.channel.category, topic=args.topic)
+                everyone = utils.get(ctx.channel.guild.roles, name='@everyone')
+                await new_channel.set_permissions(everyone, read_messages=False)
+        else:
+            new_channel = bot.get_channel(channel_id)
         _old_channel, _new_channel = (
-            await self.get_channel(ctx.channel, user), await self.get_channel(args.channel, user))
+            await self.get_channel(ctx.channel, user), await self.get_channel(new_channel, user))
         if not User.select().where(User.channel_id == _new_channel).count() and _new_channel.date != _old_channel.date:
             _new_channel.date = _old_channel.date
             _new_channel.save(only=('date',))
             await self.request(f'campaign/{_new_channel.campaign_id}/', method='patch', data=dict(
-                start_game_date=_new_channel.date, current_game_date=_new_channel.date))
+                start_game_date=_new_channel.date.isoformat(), current_game_date=_new_channel.date.isoformat()))
         for player_name in args.players:
             player = await self.get_user(player_name)
             if player and player.channel_id:
@@ -295,7 +302,7 @@ class Fallout(commands.Cog):
                     await old_channel.set_permissions(player.user, overwrite=None)
             player.channel_id = new_channel.id
             player.save(only=('channel_id',))
-            await new_channel.set_permissions(player.user, read_messages=True, read_message_history=False)
+            await new_channel.set_permissions(player.user, read_messages=True)
             await self.request(f'character/{player.character_id}/', method='patch', data=dict(
                 campaign=_new_channel.campaign_id))
         await new_channel.set_permissions(ctx.author, read_messages=True)
@@ -337,7 +344,7 @@ class Fallout(commands.Cog):
     @commands.command()
     @commands.guild_only()
     @commands.has_role(ROLE)
-    async def damage(self, ctx, *args):
+    async def hit(self, ctx, *args):
         await ctx.message.delete()
         user = await self.get_user(ctx.author)
         command = f'{ctx.prefix}{ctx.command.name}'
@@ -408,7 +415,7 @@ class Fallout(commands.Cog):
         parser.add_argument(
             '--unarmed', '-u', dest='no_weapon', action='store_true', default=False, help="Sans arme ?")
         parser.add_argument(
-            '--success', '-s', dest='force_success', action='store_true', default=False, help="Succès ?")
+            '--success', '-f', dest='force_success', action='store_true', default=False, help="Succès ?")
         parser.add_argument(
             '--critical', '-c', dest='force_critical', action='store_true', default=False, help="Critique ?")
         parser.add_argument(
@@ -421,19 +428,24 @@ class Fallout(commands.Cog):
             return
 
         args.body_part = self.try_get(args.target_body_part, self.BODY_PARTS)
-        attacker, defender = await self.get_user(args.attacker), await self.get_user(args.defender)
-        if not attacker or not defender or not attacker.character_id or not defender.character_id:
+        attacker, target = await self.get_user(args.attacker), await self.get_user(args.target)
+        if not attacker or not target or not attacker.character_id or not target.character_id:
+            await ctx.author.send(
+                f":warning:  Les joueurs sélectionnés ne peuvent combattre car ils n'ont pas de personnage.")
             return
         data = vars(args).copy()
         data.pop('attacker')
+        data['target'] = target.character_id
         ret = await self.request(f'character/{attacker.character_id}/fight/', method='post', data=data)
         if ret is None:
             await ctx.author.send(
                 f":warning:  Une erreur s'est produite pendant l'exécution de la commande `{command}`.")
             return
+        attacker = f"<@{attacker.id}>" if attacker.id else f"{attacker.name} ({attacker.character_id})"
+        target = f"<@{target.id}>" if target.id else f"{target.name} ({target.character_id})"
         success, critical, label = ret['success'], ret['critical'], ret['long_label']
-        await ctx.channel.send(
-            f":crossed_swords:  <@{attacker.id}> **vs** <@{defender.id}> : {self.STATUS[success, critical]} {label}")
+        status = self.STATUS[success, critical]
+        await ctx.channel.send(f":crossed_swords: {status}  {attacker} **vs** {target} : {label}")
 
     @commands.command()
     @commands.guild_only()
@@ -464,8 +476,8 @@ class Fallout(commands.Cog):
             return
         creatures = []
         for creature in ret:
-            self.creatures[args.chacter] = creature = Creature(
-                name=creature['name'], character_id=creature['id'], campaign_id=creature['campaign'])
+            self.creatures[args.character] = creature = Creature(
+                id=0, name=creature['name'], character_id=creature['id'], campaign_id=creature['campaign'])
             creatures.append(creature)
         creatures = ', '.join([f'**{c.name}** ({c.character_id})' for c in creatures])
         if len(creatures) > 1:
@@ -497,7 +509,7 @@ class Fallout(commands.Cog):
         if not _channel or not _channel.campaign_id:
             return
         seconds = int(timedelta(seconds=args.seconds, minutes=args.minutes, hours=args.hours).total_seconds())
-        data = dict(resting=args.resting, reset=args.reset, secondes=seconds)
+        data = dict(resting=args.resting, reset=args.reset, seconds=seconds)
         ret = await self.request(f'campaign/{_channel.campaign_id}/next/', method='post', data=data)
         if ret is None:
             return
@@ -513,7 +525,7 @@ class Fallout(commands.Cog):
         except:
             character = ret['character']
             await ctx.channel.send(
-                f":repeat:  C'est désormais au tour de **{character['name']}** *({character['id']})*.")
+                f":repeat:  C'est désormais au tour de **{character['name']}** ({character['id']}).")
 
     @commands.command()
     @commands.guild_only()
@@ -541,7 +553,7 @@ class Fallout(commands.Cog):
         if args.item.isdigit():
             ret = await self.request(f'item/?id={args.item}&fields=id,nameall=1')
         else:
-            ret = await self.request(f'item/?name.icontains="{args.item}"&fields=id,name&all=1')
+            ret = await self.request(f'item/?name.icontains={args.item}&fields=id,name&all=1')
         if not ret or len(ret) > 1:
             await ctx.author.send(f":warning:  Aucun ou trop ({len(ret)}) d'objets correspondent à la recherche.")
             return
@@ -556,7 +568,7 @@ class Fallout(commands.Cog):
             return
         if not silent:
             await ctx.channel.send(
-                f":gift:  <@{_user.character_id}> a récupéré {args.quantity} **{item_name}** !")
+                f":gift:  <@{_user.id}> a récupéré {args.quantity} **{item_name}** !")
 
     @commands.command()
     @commands.guild_only()
@@ -602,7 +614,7 @@ class Fallout(commands.Cog):
     @commands.command()
     @commands.guild_only()
     @commands.has_role(ROLE)
-    async def speak(self, ctx, *args):
+    async def say(self, ctx, *args):
         await ctx.message.delete()
         user = await self.get_user(ctx.author)
         command = f'{ctx.prefix}{ctx.command.name}'
@@ -629,7 +641,9 @@ class Fallout(commands.Cog):
         await ctx.channel.send(embed=embed)
 
     async def cog_command_error(self, ctx, error):
-        logger.error(error)
+        await ctx.author.send(
+            f":warning:  **Erreur :** {error} (`{ctx.message.content}` on **{ctx.message.channel.name}**)")
+        logger.error(f"[{ctx.message.channel.name}] {error} ({ctx.message.content})")
 
     async def get_character_url(self, user):
         if not user.player_id:
@@ -661,7 +675,8 @@ class Fallout(commands.Cog):
                 if not creature:
                     ret = await self.request(f'character/{user}/')
                     if ret:
-                        creature = Creature(name=ret['name'], character_id=ret['id'], campaign_id=ret['campaign'])
+                        creature = Creature(
+                            id=0, name=ret['name'], character_id=ret['id'], campaign_id=ret['campaign_id'])
                         self.creatures[user] = creature
                 return creature
             user_id = self.extract_id(user)
@@ -706,18 +721,19 @@ class Fallout(commands.Cog):
         channel_name = channel.name.replace('-', ' ').replace('_', ' ').title()
         if not _channel.campaign_id:
             ret = await self.request('campaign/', method='post', data=dict(
-                name=channel_name, game_master=user.player_id if user else None,
+                name=channel_name, game_master=user.player_id if user else None, description=channel.topic or '',
                 start_game_date=FALLOUT_DATE.isoformat(), current_game_date=FALLOUT_DATE.isoformat()))
             _channel.campaign_id = ret['id']
             _channel.save(only=('campaign_id',))
         else:
             ret = await self.request(f'campaign/{_channel.campaign_id}/', method='get')
-            _channel.date = parse_date(ret['current_game_time'])
+            _channel.date = parse_date(ret['current_game_date'])
             _channel.save(only=('date',))
-        if _channel.name != channel.name:
-            _channel.name = channel.name
-            _channel.save(only=('name',))
-            await self.request(f'campaign/{_channel.campaign_id}/', method='patch', data=dict(name=channel_name))
+        if _channel.name != channel.name or _channel.topic != channel.topic:
+            _channel.name, _channel.topic = channel.name, channel.topic
+            _channel.save(only=('name', 'topic',))
+            await self.request(f'campaign/{_channel.campaign_id}/', method='patch', data=dict(
+                name=channel_name, description=channel.topic or ''))
         _channel.channel = channel
         self.channels[_channel.id] = _channel
         return _channel
