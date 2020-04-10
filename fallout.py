@@ -707,7 +707,7 @@ class Fallout(commands.Cog):
         if not _channel.campaign_id:
             ret = await self.request('campaign/', method='post', data=dict(
                 name=channel_name, game_master=user.player_id if user else None,
-                start_game_date=FALLOUT_DATE, current_game_date=FALLOUT_DATE))
+                start_game_date=FALLOUT_DATE.isoformat(), current_game_date=FALLOUT_DATE.isoformat()))
             _channel.campaign_id = ret['id']
             _channel.save(only=('campaign_id',))
         else:
