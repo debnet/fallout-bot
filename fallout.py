@@ -640,6 +640,16 @@ class Fallout(commands.Cog):
             embed.set_image(url=args.image)
         await ctx.channel.send(embed=embed)
 
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        if not after.bot:
+            await self.get_user(after)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_update(self, before, after):
+        if Channel.get_or_none(Channel.id == after.id):
+            await self.get_channel(after)
+
     async def cog_command_error(self, ctx, error):
         await ctx.author.send(
             f":warning:  **Erreur :** {error} (`{ctx.message.content}` on **{ctx.message.channel.name}**)")
