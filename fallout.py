@@ -650,6 +650,14 @@ class Fallout(commands.Cog):
         if Channel.get_or_none(Channel.id == after.id):
             await self.get_channel(after)
 
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        _channel = Channel.get_or_none(Channel.id == channel.id)
+        if _channel:
+            await self.request(f'campaign/{_channel.campaign_id}/', method='delete')
+            User.update(channel_id=None).where(User.channel_id == _channel.id).execute()
+            _channel.delete_instance()
+
     async def cog_command_error(self, ctx, error):
         await ctx.author.send(
             f":warning:  **Erreur :** {error} (`{ctx.message.content}` on **{ctx.message.channel.name}**)")
