@@ -339,12 +339,12 @@ class Fallout(commands.Cog):
                     f":warning:  Une erreur s'est produite pendant l'exécution de la commande `{command}`.")
                 return
             success, critical, label = ret['success'], ret['critical'], ret['long_label']
-            await ctx.channel.send(f":game_die: {self.STATUS[success, critical]}  <@{player.id}> {label}")
+            await ctx.channel.send(f":game_die:  {self.STATUS[success, critical]}  <@{player.id}> {label}")
 
     @commands.command()
     @commands.guild_only()
     @commands.has_role(ROLE)
-    async def hit(self, ctx, *args):
+    async def damage(self, ctx, *args):
         await ctx.message.delete()
         user = await self.get_user(ctx.author)
         command = f'{ctx.prefix}{ctx.command.name}'
@@ -640,6 +640,39 @@ class Fallout(commands.Cog):
             embed.set_image(url=args.image)
         await ctx.channel.send(embed=embed)
 
+    @commands.command()
+    @commands.guild_only()
+    @commands.has_role(ROLE)
+    async def xp(self, ctx, *args):
+        await ctx.message.delete()
+        user = await self.get_user(ctx.author)
+        command = f'{ctx.prefix}{ctx.command.name}'
+        parser = Parser(
+            prog=command,
+            description="Ajoute de l'expérience à un ou plusieurs personnages.")
+        parser.add_argument('amount', type=int, help="Quantité d'expérience")
+        parser.add_argument('players', metavar='player', type=str, nargs='+', help="Nom du joueur")
+        args = parser.parse_args(args)
+        if parser.message:
+            await ctx.author.send(f"```{parser.message}```")
+            return
+
+        data = vars(args).copy()
+        data.pop('players')
+        for player_name in args.players:
+            player = await self.get_user(player_name)
+            if not player or not player.character_id:
+                continue
+            ret = await self.request(f'character/{player.character_id}/xp/', method='post', data=data)
+            if ret is None:
+                await ctx.author.send(
+                    f":warning:  Une erreur s'est produite pendant l'exécution de la commande `{command}`.")
+                return
+            required_xp, next_level = ret['required_experience'], ret['level'] + 1
+            await ctx.channel.send(
+                f":up:  <@{player.id}> a gagné **{args.amount}** points d'expérience ! "
+                f"Il a encore besoin de **{required_xp}** points d'expérience pour passer au niveau **{next_level}**.")
+
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         if not after.bot:
@@ -660,7 +693,8 @@ class Fallout(commands.Cog):
 
     async def cog_command_error(self, ctx, error):
         await ctx.author.send(
-            f":warning:  **Erreur :** {error} (`{ctx.message.content}` on **{ctx.message.channel.name}**)")
+            f":warning:  **Erreur :** {error} (`{ctx.message.content}` on `#{ctx.message.channel.name}`)"
+            if hasattr(ctx.message.channel, 'name') else f":warning:  **Erreur :** {error} (`{ctx.message.content}`")
         logger.error(f"[{ctx.message.channel.name}] {error} ({ctx.message.content})")
 
     async def get_character_url(self, user):
