@@ -810,7 +810,7 @@ class Fallout(commands.Cog):
             logger.debug(f"[{method.upper()}] [{resp.status_code}] {url} {data} {result}")
 
     def extract_id(self, string):
-        groups = re.match(r'<[@#](\d+)>', string)
+        groups = re.match(r'<[@!#]+(\d+)>', string)
         if groups:
             return int(groups[1])
         return groups
