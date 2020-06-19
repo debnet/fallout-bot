@@ -1,6 +1,7 @@
 # coding: utf-8
 import argparse
 import httpx
+import locale
 import logging
 import os
 import peewee as pw
@@ -14,8 +15,10 @@ from discord.ext import commands
 
 
 DISCORD_TOKEN = os.environ.get('DISCORD_TOKEN')
+DISCORD_LOCALE = os.environ.get('DISCORD_LOCALE') or 'fr_FR'
 DISCORD_OPERATOR = OP = os.environ.get('DISCORD_OPERATOR') or '!'
 DISCORD_ROLE = ROLE = os.environ.get('DISCORD_ROLE') or 'MJ'
+DISCORD_CATEGORY = os.environ.get('DISCORD_CATEGORY') or 'Joueurs'
 FALLOUT_TOKEN = os.environ.get('FALLOUT_TOKEN')
 FALLOUT_URL = os.environ.get('FALLOUT_URL')
 FALLOUT_DATE = parse_date(os.environ.get('FALLOUT_DATE') or datetime.utcnow().isoformat(), dayfirst=True)
@@ -244,6 +247,17 @@ class Fallout(commands.Cog):
         url = await self.get_character_url(user)
         await ctx.author.send(
             f":white_check_mark:  Votre personnage a été créé avec succès ! Fiche de personnage : {url}")
+        # Create private channel
+        channel_name = user.name.lower().replace('#', '').replace(' ', '-').replace('_', '-')
+        category = utils.get(ctx.channel.guild.categories, name=DISCORD_CATEGORY)
+        new_channel = utils.get(ctx.channel.guild.text_channels, name=channel_name, category=category)
+        if not new_channel:
+            new_channel = await ctx.channel.guild.create_text_channel(channel_name, category=category, topic=user.name)
+            everyone = utils.get(ctx.channel.guild.roles, name='@everyone')
+            gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ROLE)
+            await new_channel.set_permissions(everyone, read_messages=False)
+            await new_channel.set_permissions(gm_role, read_messages=True)
+            await new_channel.set_permissions(user.user, read_messages=True)
 
     @commands.command()
     @commands.guild_only()
@@ -271,6 +285,7 @@ class Fallout(commands.Cog):
         parser.add_argument('channel', type=str, help="Nom du canal de destination")
         parser.add_argument('players', metavar='player', type=str, nargs='+', help="Nom du joueur")
         parser.add_argument('--topic', '-t', type=str, help="Description du canal")
+        parser.add_argument('--date', '-d', type=str, help="Date ")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -282,13 +297,14 @@ class Fallout(commands.Cog):
             new_channel = utils.get(ctx.channel.guild.text_channels, name=channel_name, category=ctx.channel.category)
             if not new_channel:
                 new_channel = await ctx.channel.guild.create_text_channel(
-                    args.channel, category=ctx.channel.category, topic=args.topic)
+                    channel_name, category=ctx.channel.category, topic=args.topic)
                 everyone = utils.get(ctx.channel.guild.roles, name='@everyone')
                 await new_channel.set_permissions(everyone, read_messages=False)
         else:
             new_channel = bot.get_channel(channel_id)
         _old_channel, _new_channel = (
-            await self.get_channel(ctx.channel, user), await self.get_channel(new_channel, user))
+            await self.get_channel(ctx.channel, user),
+            await self.get_channel(new_channel, user, date=parse_date(args.date)))
         if not User.select().where(User.channel_id == _new_channel).count() and _new_channel.date != _old_channel.date:
             _new_channel.date = _old_channel.date
             _new_channel.save(only=('date',))
@@ -305,7 +321,8 @@ class Fallout(commands.Cog):
             await new_channel.set_permissions(player.user, read_messages=True)
             await self.request(f'character/{player.character_id}/', method='patch', data=dict(
                 campaign=_new_channel.campaign_id))
-        await new_channel.set_permissions(ctx.author, read_messages=True)
+        gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ROLE)
+        await new_channel.set_permissions(gm_role, read_messages=True)
 
     @commands.command()
     @commands.guild_only()
@@ -514,8 +531,10 @@ class Fallout(commands.Cog):
         if ret is None:
             return
         if seconds:
+            date = parse_date(ret['campaign']['current_game_date'])
             await ctx.channel.send(
-                f":hourglass:  **{args.hours:02}:{args.minutes:02}:{args.seconds:02}** se sont écoulés...")
+                f":hourglass:  **{args.hours:02}:{args.minutes:02}:{args.seconds:02}** se sont écoulés, "
+                f"nous sommes le **{date:%A %d %B %Y}** et il est **{date:%H:%M:%S}**...")
         if not ret.get('character'):
             return
         try:
@@ -757,7 +776,8 @@ class Fallout(commands.Cog):
         self.users[_user.id] = _user
         return _user
 
-    async def get_channel(self, channel, user=None):
+    async def get_channel(self, channel, user=None, date=None):
+        date = date or FALLOUT_DATE
         if isinstance(channel, str):
             channel_id = self.extract_id(channel)
             if channel_id:
@@ -769,12 +789,12 @@ class Fallout(commands.Cog):
         _channel = self.channels.get(channel.id)
         if not _channel:
             _channel, created = Channel.get_or_create(
-                id=channel.id, defaults=dict(name=channel.name, date=FALLOUT_DATE))
+                id=channel.id, defaults=dict(name=channel.name, date=date))
         channel_name = channel.name.replace('-', ' ').replace('_', ' ').title()
         if not _channel.campaign_id:
             ret = await self.request('campaign/', method='post', data=dict(
                 name=channel_name, game_master=user.player_id if user else None, description=channel.topic or '',
-                start_game_date=FALLOUT_DATE.isoformat(), current_game_date=FALLOUT_DATE.isoformat()))
+                start_game_date=FALLOUT_DATE.isoformat(), current_game_date=date.isoformat()))
             _channel.campaign_id = ret['id']
             _channel.save(only=('campaign_id',))
         else:
@@ -821,6 +841,7 @@ class Fallout(commands.Cog):
 
 
 if __name__ == '__main__':
+    locale.setlocale(locale.LC_ALL, DISCORD_LOCALE)
     db.create_tables((Channel, User))
     bot = commands.Bot(command_prefix=DISCORD_OPERATOR)
     bot.add_cog(Fallout(bot))
