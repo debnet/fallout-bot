@@ -708,14 +708,6 @@ class Fallout(commands.Cog):
                 f":up:  <@{player.id}> a gagné **{args.amount}** points d'expérience ! "
                 f"Il a encore besoin de **{required_xp}** points d'expérience pour passer au niveau **{next_level}**.")
 
-    @commands.command()
-    @commands.guild_only()
-    @commands.has_role(ROLE)
-    async def debug(self, ctx, *args):
-        await ctx.message.delete()
-        user = await self.get_user(' '.join(args))
-        print(user)
-
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
         if not after.bot:
@@ -846,7 +838,7 @@ class Fallout(commands.Cog):
         if method == 'get':
             resp = await func(url, **options)
         else:
-            resp = await func(url, json=data, **options)
+            resp = await func(url, data=data, **options)
         result = ''
         try:
             result = resp.json()
