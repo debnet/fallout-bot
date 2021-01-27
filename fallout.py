@@ -330,6 +330,7 @@ class Fallout(commands.Cog):
             player = await self.get_user(player_name)
             if player and player.channel_id:
                 old_channel = self.bot.get_channel(player.channel_id)
+                print("CHANNEL:", old_channel)
                 if old_channel:
                     await old_channel.set_permissions(player.user, overwrite=None)
             player.channel_id = new_channel.id
