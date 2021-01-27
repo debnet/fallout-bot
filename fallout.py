@@ -510,18 +510,18 @@ class Fallout(commands.Cog):
     @commands.command()
     @commands.guild_only()
     @commands.has_role(ROLE)
-    async def next(self, ctx, *args):
+    async def time(self, ctx, *args):
         await ctx.message.delete()
         user = await self.get_user(ctx.author)
         command = f'{ctx.prefix}{ctx.command.name}'
         parser = Parser(
             prog=command,
-            description="Passe le tour de jeu au personnage suivant et/ou avance dans le temps.")
+            description="Avance dans le temps et passe éventuellement au tour du personnage suivant.")
         parser.add_argument('--seconds', '-S', type=int, default=0, help="Nombre de secondes écoulées")
         parser.add_argument('--minutes', '-M', type=int, default=0, help="Nombre de minutes écoulées")
         parser.add_argument('--hours', '-H', type=int, default=0, help="Nombre de minutes écoulées")
         parser.add_argument('--sleep', '-s', dest='resting', action='store_true', default=False, help="Repos ?")
-        parser.add_argument('--turn', '-t', action='store_true', default=False, help="Tour de jeu ?")
+        parser.add_argument('--turn', '-t', action='store_true', default=False, help="Tour suivant ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
