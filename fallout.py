@@ -134,30 +134,31 @@ class Fallout(commands.Cog):
         ('l', 'chance'): 'luck',
     }
     SKILLS = {
-        ('sg', 'sw', 'small', 'léger', 'light'): 'small_guns',
-        ('bg', 'bw', 'big', 'lourd', 'heavy'): 'big_guns',
-        ('eg', 'ew', 'energy', 'energie', 'laser', 'plasma'): 'energy_weapons',
-        ('un', 'nu', 'mains', 'nues', 'bare', 'hands'): 'unarmed',
-        ('me', 'melee', 'mêlée'): 'melee_weapons',
-        ('th', 'throw', 'jet', 'grenade'): 'throwing',
-        ('at', 'ath', 'athletism', 'athlétisme', 'sport'): 'athletics',
-        ('fa', 'ps', 'first', 'aid', 'premiers', 'secours', 'soins'): 'first_aid',
-        ('do', 'doc', 'med', 'docteur', 'medecine'): 'doctor',
-        ('ch', 'chem', 'chimie'): 'chems',
-        ('sn', 'stealth', 'discrétion'): 'sneak',
-        ('lp', 'cr', 'lock', 'crochetage'): 'lockpick',
-        ('st', 'vol', 'pickpocket'): 'steal',
-        ('tr', 'pi', 'piège', 'pièges'): 'traps',
-        ('ex', 'exp', 'explosif', 'explosifs'): 'explosives',
-        ('sc', 'science', 'sciences'): 'science',
-        ('rp', 'réparation', 'réparations', 'mc', 'meca', 'mech'): 'repair',
-        ('cp', 'comp', 'computer', 'ordis', 'info', 'informatique'): 'computers',
-        ('el', 'elec', 'electro'): 'electronics',
-        ('sp', 'pe', 'di', 'discours', 'persuation'): 'speech',
-        ('dc', 'tp', 'tromper', 'mentir'): 'deception',
-        ('ba', 'ma', 'commerce', 'marchandage'): 'barter',
-        ('su', 'survie'): 'survival',
-        ('kn', 'co', 'connaissance'): 'knowledge',
+        ('sg', 'small', 'light',  'léger', 'légère', 'légères', ): 'small_guns',
+        ('bg', 'big', 'heavy', 'lourd', 'lourde', 'lourdes', ): 'big_guns',
+        ('ew', 'energy', 'energie', 'laser', 'plasma', ): 'energy_weapons',
+        ('un', 'hand', 'main', 'mains', 'cac', 'contact', ): 'unarmed',
+        ('mw', 'melee', 'mêlée', ): 'melee_weapons',
+        ('th', 'throw', 'jet', 'lance', 'lancer', 'grenade', ): 'throwing',
+        ('at', 'ath', 'athletism', 'athlétisme', ): 'athletics',
+        ('dt', 'detect', 'search', 'détection', 'recherche', 'rechercher', 'trouver', ): 'detection',
+        ('fa', 'first', 'aid', 'premiers', 'secours', ): 'first_aid',
+        ('do', 'doc', 'med', 'médecin', 'médecine', ): 'doctor',
+        ('ch', 'chem', 'chimie', 'pharma', 'pharmacologie', ): 'chems',
+        ('sn', 'discret', 'discrétion', 'cacher', ): 'sneak',
+        ('lp', 'lock', 'crochetage', ): 'lockpick',
+        ('st', 'vol', 'voler', 'pickpocket', ): 'steal',
+        ('tr', 'piège', 'pièges', ): 'traps',
+        ('ex', 'exp', 'explosif', 'explosifs', ): 'explosives',
+        ('sc', ): 'science',
+        ('rp', 'mech', 'meca', 'mécanisme', 'réparer', 'réparation', 'craft', ): 'repair',
+        ('cp', 'comp', 'info', 'programmer', 'pirater', 'piratage', 'hacker', 'hacking', ): 'computers',
+        ('el', 'elec', 'electro', ): 'electronics',
+        ('sp', 'discours', 'parler', 'convaincre', ): 'speech',
+        ('de', 'tromper', 'tromperie', 'mentir', ): 'deception',
+        ('ba', 'marchandage', 'commerce', 'négocier', ): 'barter',
+        ('su', 'survie', 'outdoorsman', ): 'survival',
+        ('kn', 'connaissance', 'culture', ): 'knowledge',
     }
     STATS = {**SPECIAL, **SKILLS}
     STATS = {k: v for ks, v in STATS.items() for k in ks + (v,)}
@@ -520,7 +521,7 @@ class Fallout(commands.Cog):
         parser.add_argument('--minutes', '-M', type=int, default=0, help="Nombre de minutes écoulées")
         parser.add_argument('--hours', '-H', type=int, default=0, help="Nombre de minutes écoulées")
         parser.add_argument('--sleep', '-s', dest='resting', action='store_true', default=False, help="Repos ?")
-        parser.add_argument('--reset', '-r', action='store_true', default=False, help="Réinitialiser ?")
+        parser.add_argument('--turn', '-t', action='store_true', default=False, help="Tour de jeu ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -530,7 +531,7 @@ class Fallout(commands.Cog):
         if not _channel or not _channel.campaign_id:
             return
         seconds = int(timedelta(seconds=args.seconds, minutes=args.minutes, hours=args.hours).total_seconds())
-        data = dict(resting=args.resting, reset=args.reset, seconds=seconds)
+        data = dict(resting=args.resting, reset=not args.turn, seconds=seconds)
         ret = await self.request(f'campaign/{_channel.campaign_id}/next/', method='post', data=data)
         if ret is None:
             return
