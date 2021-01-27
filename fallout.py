@@ -320,7 +320,7 @@ class Fallout(commands.Cog):
             new_channel = bot.get_channel(channel_id)
         _old_channel, _new_channel = (
             await self.get_channel(ctx.channel, user),
-            await self.get_channel(new_channel, user, date=parse_date(args.date)))
+            await self.get_channel(new_channel, user, date=parse_date(args.date) if args.date else None))
         if not User.select().where(User.channel_id == _new_channel).count() and _new_channel.date != _old_channel.date:
             _new_channel.date = _old_channel.date
             _new_channel.save(only=('date',))
