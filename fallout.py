@@ -57,7 +57,7 @@ class User(pw.Model):
     level = pw.IntegerField(default=0)
     player_id = pw.IntegerField(null=True)
     character_id = pw.IntegerField(null=True)
-    channel_id = pw.ForeignKeyField(Channel, null=True)
+    channel = pw.ForeignKeyField(Channel, null=True)
 
     class Meta:
         database = db
@@ -330,7 +330,6 @@ class Fallout(commands.Cog):
             player = await self.get_user(player_name)
             if player and player.channel_id:
                 old_channel = self.bot.get_channel(player.channel_id)
-                print("Channel:", player.channel_id, type(player.channel_id), old_channel)
                 if old_channel:
                     await old_channel.set_permissions(player.user, overwrite=None)
             player.channel_id = new_channel.id
