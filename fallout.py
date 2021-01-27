@@ -331,7 +331,7 @@ class Fallout(commands.Cog):
             if player and player.channel_id:
                 old_channel = utils.get(ctx.channel.guild.text_channels, id=player.channel_id)
                 if old_channel:
-                    await old_channel.set_permissions(player.user, overwrite=None)
+                    await old_channel.set_permissions(player.user, read_message=False, overwrite=None)
             player.channel_id = new_channel.id
             player.save(only=('channel_id',))
             await new_channel.set_permissions(player.user, read_messages=True)
