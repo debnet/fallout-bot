@@ -204,6 +204,11 @@ class Fallout(commands.Cog):
         self.channels = {}
         self.creatures = {}
 
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        if not after.bot:
+            await self.get_user(after)
+
     @commands.command()
     @commands.guild_only()
     async def new(self, ctx, *args):
@@ -716,10 +721,15 @@ class Fallout(commands.Cog):
             _channel.delete_instance()
 
     async def cog_command_error(self, ctx, error):
-        await ctx.author.send(
-            f":warning:  **Erreur :** {error} (`{ctx.message.content}` on `#{ctx.message.channel.name}`)"
-            if hasattr(ctx.message.channel, 'name') else f":warning:  **Erreur :** {error} (`{ctx.message.content}`")
-        logger.error(f"[{ctx.message.channel.name}] {error} ({ctx.message.content})")
+        if hasattr(ctx.message.channel, 'name'):
+            await ctx.author.send(
+                f":warning:  **Erreur :** {error} (`{ctx.message.content}` on `{ctx.message.channel.name}`)")
+            logger.error(f"[{ctx.message.channel.name}] {error} ({ctx.message.content})")
+        else:
+            await ctx.author.send(
+                f":warning:  **Erreur :** {error} (`{ctx.message.content}`)")
+            logger.error(f"{error} ({ctx.message.content})")
+        raise
 
     async def get_character_url(self, user):
         if not user.player_id:
