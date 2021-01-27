@@ -209,6 +209,12 @@ class Fallout(commands.Cog):
         if not after.bot:
             await self.get_user(after)
 
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild:
+            return
+        await self.get_user(message.author)
+
     @commands.command()
     @commands.guild_only()
     async def new(self, ctx, *args):
