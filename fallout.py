@@ -835,10 +835,10 @@ class Fallout(commands.Cog):
         data, method = data or {}, (method or 'get').lower()
         url = '/'.join([FALLOUT_URL, 'api', endpoint])
         func = getattr(self.session, method)
-        if method == 'get':
+        if method in ('get', 'delete'):
             resp = await func(url, **options)
         else:
-            resp = await func(url, data=data, **options)
+            resp = await func(url, json=data, **options)
         result = ''
         try:
             result = resp.json()
