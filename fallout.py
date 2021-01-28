@@ -345,13 +345,14 @@ class Fallout(commands.Cog):
             deleted_messages = await new_channel.purge()
             transcript = await chat_exporter.raw_export(new_channel, deleted_messages, 'Europe/Paris')
             if transcript:
-                file = File(io.BytesIO(transcript.encode()), filename=f'historique-{new_channel.name}.html')
                 for member in new_channel.members:
                     if member.bot:
                         continue
-                    await ctx.send(f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
-                                   f"les messages du canal ont été purgés par soucis de discrétion. "
-                                   f"Vous pouvez retrouver l'historique de messages ci-dessous :", file=file)
+                    file = File(io.BytesIO(transcript.encode()), filename=f'{new_channel.name}.html')
+                    await member.send(
+                        f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
+                        f"les messages du canal ont été purgés par soucis de discrétion.\n"
+                        f"Vous pouvez retrouver l'historique de messages ci-dessous :", file=file)
         users = []
         for player_name in args.players:
             player = await self.get_user(player_name)
