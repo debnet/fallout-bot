@@ -343,16 +343,17 @@ class Fallout(commands.Cog):
                 start_game_date=_new_channel.date.isoformat(), current_game_date=_new_channel.date.isoformat()))
         if new_channel.members:
             deleted_messages = await new_channel.purge()
-            transcript = await chat_exporter.raw_export(new_channel, deleted_messages, 'Europe/Paris')
-            if transcript:
-                for member in new_channel.members:
-                    if member.bot:
-                        continue
-                    file = File(io.BytesIO(transcript.encode()), filename=f'{new_channel.name}.html')
-                    await member.send(
-                        f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
-                        f"les messages du canal ont été purgés par soucis de discrétion.\n"
-                        f"Vous pouvez retrouver l'historique de messages ci-dessous :", file=file)
+            if deleted_messages:
+                transcript = await chat_exporter.raw_export(new_channel, deleted_messages, 'Europe/Paris')
+                if transcript:
+                    for member in new_channel.members:
+                        if member.bot:
+                            continue
+                        file = File(io.BytesIO(transcript.encode()), filename=f'{new_channel.name}.html')
+                        await member.send(
+                            f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
+                            f"les messages du canal ont été purgés par soucis de discrétion.\n"
+                            f":watch:  Vous pouvez retrouver l'historique de messages ci-dessous :", file=file)
         users = []
         for player_name in args.players:
             player = await self.get_user(player_name)
