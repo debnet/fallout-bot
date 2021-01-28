@@ -353,7 +353,7 @@ class Fallout(commands.Cog):
                         await member.send(
                             f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
                             f"les messages du canal ont été purgés par soucis de discrétion.\n"
-                            f":watch:  Vous pouvez retrouver l'historique de messages ci-dessous :", file=file)
+                            f":watch:  Vous pouvez retrouver l'historique des messages ci-dessous :", file=file)
         arriving_users, leaving_users = [], {}
         for player_name in args.players:
             player = await self.get_user(player_name)
