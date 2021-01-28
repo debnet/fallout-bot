@@ -368,15 +368,15 @@ class Fallout(commands.Cog):
                 campaign=_new_channel.campaign_id))
         gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ROLE)
         await new_channel.set_permissions(gm_role, read_messages=True)
-        users = ', '.join([f'<@{user.id}>' for user in users])
+        users_names = ', '.join([f'<@{user.id}>' for user in users])
         if len(users) > 1:
             if _old_channel:
-                await _old_channel.channel.send(f":outbox_tray:  {users} partent de <#{ctx.channel.id}>.")
-            await _new_channel.channel.send(f":inbox_tray:  {users} arrivent dans <#{ctx.channel.id}>.")
+                await _old_channel.channel.send(f":outbox_tray:  {users_names} partent de <#{_old_channel.id}>.")
+            await _new_channel.channel.send(f":inbox_tray:  {users_names} arrivent dans <#{_new_channel.id}>.")
             return
         if _old_channel:
-            await _old_channel.channel.send(f":outbox_tray:  {users} part de <#{ctx.channel.id}>.")
-        await _new_channel.channel.send(f":inbox_tray:  {users} arrive dans <#{ctx.channel.id}>.")
+            await _old_channel.channel.send(f":outbox_tray:  {users_names} part de <#{_old_channel.id}>.")
+        await _new_channel.channel.send(f":inbox_tray:  {users_names} arrive dans <#{_new_channel.id}>.")
 
     @commands.command()
     @commands.guild_only()
@@ -560,11 +560,11 @@ class Fallout(commands.Cog):
             self.creatures[args.character] = creature = Creature(
                 id=0, name=creature['name'], character_id=creature['id'], campaign_id=creature['campaign'])
             creatures.append(creature)
-        creatures = ', '.join([f'**{c.name}** ({c.character_id})' for c in creatures])
+        creatures_names = ', '.join([f'**{c.name}** ({c.character_id})' for c in creatures])
         if len(creatures) > 1:
-            await ctx.channel.send(f":door:  {creatures} apparaissent dans <#{ctx.channel.id}>.")
+            await ctx.channel.send(f":door:  {creatures_names} apparaissent dans <#{ctx.channel.id}>.")
             return
-        await ctx.channel.send(f":door:  {creatures} apparaît dans <#{ctx.channel.id}>.")
+        await ctx.channel.send(f":door:  {creatures_names} apparaît dans <#{ctx.channel.id}>.")
 
     @commands.command()
     @commands.guild_only()
