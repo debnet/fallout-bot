@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from dateutil.parser import parse as parse_date
-from discord import utils, File
+from discord import utils, File, Intents
 from discord.ext import commands
 import chat_exporter
 
@@ -341,21 +341,23 @@ class Fallout(commands.Cog):
             _new_channel.save(only=('date',))
             await self.request(f'campaign/{_new_channel.campaign_id}/', method='patch', data=dict(
                 start_game_date=_new_channel.date.isoformat(), current_game_date=_new_channel.date.isoformat()))
-        if _new_channel.channel.members:
-            deleted_messages = await _new_channel.channel.purge()
-            transcript = await chat_exporter.raw_export(_new_channel.channel, deleted_messages, 'Europe/Paris')
+        if new_channel.members:
+            deleted_messages = await new_channel.purge()
+            transcript = await chat_exporter.raw_export(new_channel, deleted_messages, 'Europe/Paris')
             if transcript:
-                channel_name = _new_channel.channel.name
-                file = File(io.BytesIO(transcript.encode()), filename=f'historique-{channel_name}.html')
-                for member in _new_channel.channel.members:
+                file = File(io.BytesIO(transcript.encode()), filename=f'historique-{new_channel.name}.html')
+                for member in new_channel.members:
                     if member.bot:
                         continue
-                    await ctx.send(f":door:  Un ou plusieurs joueurs sont entrés dans **#{channel_name}**, "
+                    await ctx.send(f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
                                    f"les messages du canal ont été purgés par soucis de discrétion. "
                                    f"Vous pouvez retrouver l'historique de messages ci-dessous :", file=file)
         users = []
         for player_name in args.players:
             player = await self.get_user(player_name)
+            if not player:
+                print(f"'{player_name}' not found!")
+                continue
             if player and player.channel_id:
                 old_channel = self.bot.get_channel(player.channel_id)
                 if old_channel:
@@ -921,6 +923,8 @@ class Fallout(commands.Cog):
 if __name__ == '__main__':
     locale.setlocale(locale.LC_ALL, DISCORD_LOCALE)
     db.create_tables((Channel, User))
-    bot = commands.Bot(command_prefix=DISCORD_OPERATOR)
+    intents = Intents.default()
+    intents.members = True
+    bot = commands.Bot(command_prefix=DISCORD_OPERATOR, intents=intents)
     bot.add_cog(Fallout(bot))
     bot.run(DISCORD_TOKEN)
