@@ -19,6 +19,7 @@ DISCORD_LOCALE = os.environ.get('DISCORD_LOCALE') or 'fr_FR'
 DISCORD_OPERATOR = OP = os.environ.get('DISCORD_OPERATOR') or '!'
 DISCORD_ROLE = ROLE = os.environ.get('DISCORD_ROLE') or 'MJ'
 DISCORD_CATEGORY = os.environ.get('DISCORD_CATEGORY') or 'Joueurs'
+DISCORD_WORLD = os.environ.get('DISCORD_WORLD') or 'Monde'
 FALLOUT_TOKEN = os.environ.get('FALLOUT_TOKEN')
 FALLOUT_URL = os.environ.get('FALLOUT_URL')
 FALLOUT_DATE = parse_date(os.environ.get('FALLOUT_DATE') or datetime.utcnow().isoformat(), dayfirst=True)
@@ -57,6 +58,7 @@ class User(pw.Model):
     level = pw.IntegerField(default=0)
     player_id = pw.IntegerField(null=True)
     character_id = pw.IntegerField(null=True)
+    my_channel_id = pw.BigIntegerField(null=True)
     channel = pw.ForeignKeyField(Channel, null=True)
 
     class Meta:
@@ -274,6 +276,8 @@ class Fallout(commands.Cog):
             await new_channel.set_permissions(everyone, read_messages=False)
             await new_channel.set_permissions(gm_role, read_messages=True)
             await new_channel.set_permissions(user.user, read_messages=True)
+            user.my_channel_id = new_channel.id
+            user.save(only=('my_channel_id',))
 
     @commands.command()
     @commands.guild_only()
@@ -310,17 +314,18 @@ class Fallout(commands.Cog):
         channel_id = self.extract_id(args.channel)
         if not channel_id:
             channel_name = args.channel.lower().replace('#', '').replace(' ', '-').replace('_', '-')
-            new_channel = utils.get(ctx.channel.guild.text_channels, name=channel_name, category=ctx.channel.category)
+            category = utils.get(ctx.channel.guild.categories, name=DISCORD_WORLD)
+            new_channel = utils.get(ctx.channel.guild.text_channels, name=channel_name, category=category)
             if not new_channel:
                 new_channel = await ctx.channel.guild.create_text_channel(
-                    channel_name, category=ctx.channel.category, topic=args.topic)
+                    channel_name, category=category, topic=args.topic)
                 everyone = utils.get(ctx.channel.guild.roles, name='@everyone')
                 await new_channel.set_permissions(everyone, read_messages=False)
         else:
             new_channel = bot.get_channel(channel_id)
         _old_channel, _new_channel = (
             await self.get_channel(ctx.channel, user),
-            await self.get_channel(new_channel, user, date=parse_date(args.date) if args.date else None))
+            await self.get_channel(new_channel, user, date=parse_date(args.date, dayfirst=True) if args.date else None))
         if not User.select().where(User.channel_id == _new_channel).count() and _new_channel.date != _old_channel.date:
             _new_channel.date = _old_channel.date
             _new_channel.save(only=('date',))
@@ -444,17 +449,23 @@ class Fallout(commands.Cog):
             '--modifier', '-m', metavar='MOD', dest='hit_chance_modifier', type=int,
             default=0, help="Modificateur de précision")
         parser.add_argument(
-            '--action', '-a', dest='is_action', action='store_true', default=False, help="Action ?")
+            '--action', '-a', dest='is_action', action='store_true',
+            default=False, help="Action ?")
         parser.add_argument(
-            '--unarmed', '-u', dest='no_weapon', action='store_true', default=False, help="Sans arme ?")
+            '--unarmed', '-u', dest='no_weapon', action='store_true',
+            default=False, help="Sans arme ?")
         parser.add_argument(
-            '--success', '-f', dest='force_success', action='store_true', default=False, help="Succès ?")
+            '--success', '-f', dest='force_success', action='store_true',
+            default=False, help="Succès ?")
         parser.add_argument(
-            '--critical', '-c', dest='force_critical', action='store_true', default=False, help="Critique ?")
+            '--critical', '-c', dest='force_critical', action='store_true',
+            default=False, help="Critique ?")
         parser.add_argument(
-            '--raw', '-x', dest='force_raw_damage', action='store_true', default=False, help="Dégâts bruts ?")
+            '--raw', '-x', dest='force_raw_damage', action='store_true',
+            default=False, help="Dégâts bruts ?")
         parser.add_argument(
-            '--simulation', '-s', action='store_true', default=False, help="Simulation ?")
+            '--simulation', '-s', action='store_true',
+            default=False, help="Simulation ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -793,6 +804,10 @@ class Fallout(commands.Cog):
                 await self.request(f'player/{_user.player_id}/', method='patch', data=dict(nickname=_user.name))
             if _user.character_id:
                 await self.request(f'character/{_user.character_id}/', method='patch', data=dict(name=_user.name))
+            if _user.my_channel_id:
+                channel = self.bot.get_channel(_user.my_channel_id)
+                if channel:
+                    await channel.edit(name=_user.name)
         _user.user = user
         self.users[_user.id] = _user
         return _user
@@ -811,7 +826,7 @@ class Fallout(commands.Cog):
         if not _channel:
             _channel, created = Channel.get_or_create(
                 id=channel.id, defaults=dict(name=channel.name, date=date))
-        channel_name = channel.name.replace('-', ' ').replace('_', ' ').title()
+        channel_name = channel.name.replace('#', '').replace('-', ' ').replace('_', ' ').title()
         if not _channel.campaign_id:
             ret = await self.request('campaign/', method='post', data=dict(
                 name=channel_name, game_master=user.player_id if user else None, description=channel.topic or '',
