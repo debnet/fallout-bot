@@ -354,7 +354,7 @@ class Fallout(commands.Cog):
                             f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
                             f"les messages du canal ont été purgés par soucis de discrétion.\n"
                             f":watch:  Vous pouvez retrouver l'historique de messages ci-dessous :", file=file)
-        users = []
+        arriving_users, leaving_users = [], {}
         for player_name in args.players:
             player = await self.get_user(player_name)
             if not player:
@@ -364,23 +364,29 @@ class Fallout(commands.Cog):
                 old_channel = self.bot.get_channel(player.channel_id)
                 if old_channel:
                     await old_channel.set_permissions(player.user, overwrite=None)
+                    leaving_users.setdefault(old_channel.id, []).append(player)
             player.channel_id = new_channel.id
             player.save(only=('channel_id',))
-            users.append(player)
+            arriving_users.append(player)
             await new_channel.set_permissions(player.user, read_messages=True)
             await self.request(f'character/{player.character_id}/', method='patch', data=dict(
                 campaign=_new_channel.campaign_id))
         gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ROLE)
         await new_channel.set_permissions(gm_role, read_messages=True)
-        users_names = ', '.join([f'<@{user.id}>' for user in users])
-        if len(users) > 1:
-            if _old_channel:
-                await _old_channel.channel.send(f":outbox_tray:  {users_names} partent de <#{_old_channel.id}>.")
-            await _new_channel.channel.send(f":inbox_tray:  {users_names} arrivent dans <#{_new_channel.id}>.")
+        for channel_id, users in leaving_users.items():
+            old_channel = self.bot.get_channel(channel_id)
+            if not old_channel:
+                continue
+            user_names = ', '.join([f'<@{user.id}>' for user in users])
+            if len(users) > 1:
+                await old_channel.send(f":outbox_tray:  {user_names} partent de <#{old_channel.id}>.")
+                continue
+            await old_channel.send(f":outbox_tray:  {user_names} part de <#{old_channel.id}>.")
+        user_names = ', '.join([f'<@{user.id}>' for user in arriving_users])
+        if len(arriving_users) > 1:
+            await new_channel.send(f":inbox_tray:  {user_names} arrivent dans <#{new_channel.id}>.")
             return
-        if _old_channel:
-            await _old_channel.channel.send(f":outbox_tray:  {users_names} part de <#{_old_channel.id}>.")
-        await _new_channel.channel.send(f":inbox_tray:  {users_names} arrive dans <#{_new_channel.id}>.")
+        await new_channel.send(f":inbox_tray:  {user_names} arrive dans <#{new_channel.id}>.")
 
     @commands.command()
     @commands.guild_only()
@@ -564,11 +570,11 @@ class Fallout(commands.Cog):
             self.creatures[args.character] = creature = Creature(
                 id=0, name=creature['name'], character_id=creature['id'], campaign_id=creature['campaign'])
             creatures.append(creature)
-        creatures_names = ', '.join([f'**{c.name}** ({c.character_id})' for c in creatures])
+        creature_names = ', '.join([f'**{c.name}** ({c.character_id})' for c in creatures])
         if len(creatures) > 1:
-            await ctx.channel.send(f":door:  {creatures_names} apparaissent dans <#{ctx.channel.id}>.")
+            await ctx.channel.send(f":door:  {creature_names} apparaissent dans <#{ctx.channel.id}>.")
             return
-        await ctx.channel.send(f":door:  {creatures_names} apparaît dans <#{ctx.channel.id}>.")
+        await ctx.channel.send(f":door:  {creature_names} apparaît dans <#{ctx.channel.id}>.")
 
     @commands.command()
     @commands.guild_only()
