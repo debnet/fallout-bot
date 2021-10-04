@@ -498,8 +498,8 @@ class Fallout(commands.Cog):
             '--action', '-a', dest='is_action', action='store_true',
             default=False, help="Action ?")
         parser.add_argument(
-            '--unarmed', '-u', dest='no_weapon', action='store_true',
-            default=False, help="Sans arme ?")
+            '--weapon', '-w', metavar='WEAPON', dest='weapon_type', type=str,
+            default='primary', help="Type d'arme")
         parser.add_argument(
             '--success', '-f', dest='force_success', action='store_true',
             default=False, help="Succès ?")
