@@ -11,7 +11,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from dateutil.parser import parse as parse_date
-from discord import utils, File, Intents
+from discord import utils, Colour, File, Intents
+from discord.embeds import Embed, EmptyEmbed
 from discord.ext import commands
 import chat_exporter
 
@@ -19,7 +20,8 @@ import chat_exporter
 DISCORD_TOKEN = os.environ.get('DISCORD_TOKEN')
 DISCORD_LOCALE = os.environ.get('DISCORD_LOCALE') or 'fr_FR'
 DISCORD_OPERATOR = OP = os.environ.get('DISCORD_OPERATOR') or '!'
-DISCORD_ROLE = ROLE = os.environ.get('DISCORD_ROLE') or 'MJ'
+DISCORD_ADMIN_ROLE = os.environ.get('DISCORD_ROLE') or 'MJ'
+DISCORD_PLAYER_ROLE = os.environ.get('DISCORD_PLAYER') or 'PJ'
 DISCORD_CATEGORY = os.environ.get('DISCORD_CATEGORY') or 'Joueurs'
 DISCORD_WORLD = os.environ.get('DISCORD_WORLD') or 'Monde'
 FALLOUT_TOKEN = os.environ.get('FALLOUT_TOKEN')
@@ -135,7 +137,7 @@ class Fallout(commands.Cog):
         ('c', 'cha', 'charisme'): 'charisma',
         ('i', 'int'): 'intelligence',
         ('a', 'agl', 'agilité'): 'agility',
-        ('l', 'chance'): 'luck',
+        ('l', 'lck', 'chance'): 'luck',
     }
     SKILLS = {
         ('sg', 'small', 'light',  'léger', 'légère', 'légères', ): 'small_guns',
@@ -253,18 +255,18 @@ class Fallout(commands.Cog):
             await ctx.author.send(f":no_entry:  Vous avez déjà créé votre personnage.")
             return
         data = vars(args).copy()
-        if sum(data[stats] for stats in self.SPECIAL.values()) != 40 and user.level < 1:
+        if sum(data[stats] for stats in self.SPECIAL.values()) != 40 and not self.has_role(ctx.author):
             await ctx.author.send(f":no_entry:  La somme totale de vos statistiques doit valoir exactement **40**.")
             return
         data['tag_skills'] = []
-        if user.level > 0 and args.tag_skills:
+        if self.has_role(ctx.author) and args.tag_skills:
             data['tag_skills'] = [
                 self.SKILLS[t] for t in map(lambda e: e.strip().lower(), data['tag_skills']) if t in self.SKILLS]
             if len(args.tag_skills) > 3:
                 await ctx.author.send(f":no_entry:  Vous ne pouvez sélectionner que 3 spécialités au maximum.")
                 return
         player = data.pop('player', None)
-        if user.level > 0 and player:
+        if self.has_role(ctx.author) and player:
             player = await self.get_user(player)
             if player and player.player_id:
                 data['player'] = player.player_id
@@ -272,6 +274,8 @@ class Fallout(commands.Cog):
         url = await self.get_character_url(user)
         await ctx.author.send(
             f":white_check_mark:  Votre personnage a été créé avec succès ! Fiche de personnage : {url}")
+        player_role = utils.get(ctx.channel.guild.roles, name=DISCORD_PLAYER_ROLE)
+        await user.user.add_roles(player_role, reason="Nouveau joueur")
         # Create private channel
         channel_name = user.name.lower().replace('#', '').replace(' ', '-').replace('_', '-')
         category = utils.get(ctx.channel.guild.categories, name=DISCORD_CATEGORY)
@@ -279,7 +283,7 @@ class Fallout(commands.Cog):
         if not new_channel:
             new_channel = await ctx.channel.guild.create_text_channel(channel_name, category=category, topic=user.name)
             everyone = utils.get(ctx.channel.guild.roles, name='@everyone')
-            gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ROLE)
+            gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ADMIN_ROLE)
             await new_channel.set_permissions(everyone, read_messages=False)
             await new_channel.set_permissions(gm_role, read_messages=True)
             await new_channel.set_permissions(user.user, read_messages=True)
@@ -302,7 +306,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def move(self, ctx, *args):
         """Déplace un ou plusieurs joueurs dans un autre canal."""
         await ctx.message.delete()
@@ -371,7 +375,7 @@ class Fallout(commands.Cog):
             await new_channel.set_permissions(player.user, read_messages=True)
             await self.request(f'character/{player.character_id}/', method='patch', data=dict(
                 campaign=_new_channel.campaign_id))
-        gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ROLE)
+        gm_role = utils.get(ctx.channel.guild.roles, name=DISCORD_ADMIN_ROLE)
         await new_channel.set_permissions(gm_role, read_messages=True)
         for channel_id, users in leaving_users.items():
             old_channel = self.bot.get_channel(channel_id)
@@ -390,7 +394,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def roll(self, ctx, *args):
         """Réalise un jet de compétence ou de S.P.E.C.I.A.L. pour un ou plusieurs joueurs."""
         await ctx.message.delete()
@@ -425,7 +429,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def damage(self, ctx, *args):
         """Inflige des dégâts à un ou plusieurs joueurs."""
         await ctx.message.delete()
@@ -474,7 +478,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def fight(self, ctx, *args):
         """Fait s'affronter deux joueurs entre eux."""
         await ctx.message.delete()
@@ -531,15 +535,15 @@ class Fallout(commands.Cog):
             await ctx.author.send(
                 f":warning:  Une erreur s'est produite pendant l'exécution de la commande `{command}`.")
             return
-        attacker = f"<@{attacker.id}>" if attacker.id else f"{attacker.name} ({attacker.character_id})"
-        target = f"<@{target.id}>" if target.id else f"{target.name} ({target.character_id})"
+        attacker = f"**<@{attacker.id}>**" if attacker.id else f"**{attacker.name}** (*{attacker.character_id}*)"
+        target = f"**<@{target.id}>**" if target.id else f"**{target.name}** (*{target.character_id}*)"
         success, critical, label = ret['success'], ret['critical'], ret['long_label']
         status = self.STATUS[success, critical]
-        await ctx.channel.send(f":crossed_swords:  {status}  {attacker} **vs.** {target} : {label}")
+        await ctx.channel.send(f":crossed_swords:  {status}  {attacker} vs. {target}  :arrow_right:  {label}")
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def copy(self, ctx, *args):
         """Copie un ou plusieurs personnages dans la campagne courante."""
         await ctx.message.delete()
@@ -549,7 +553,7 @@ class Fallout(commands.Cog):
             prog=command,
             description="Copie un ou plusieurs personnages dans la campagne courante.")
         parser.add_argument('character', type=int, help="Identifiant du personnage")
-        parser.add_argument('--name', '-n', type=str, help="Nouveau nom du personnage")
+        parser.add_argument('--name', '-n', type=str, default='', help="Nouveau nom du personnage")
         parser.add_argument('--count', '-c', type=int, default=1, help="Nombre de personnages")
         args = parser.parse_args(args)
         if parser.message:
@@ -570,7 +574,7 @@ class Fallout(commands.Cog):
             self.creatures[args.character] = creature = Creature(
                 id=0, name=creature['name'], character_id=creature['id'], campaign_id=creature['campaign'])
             creatures.append(creature)
-        creature_names = ', '.join([f'**{c.name}** ({c.character_id})' for c in creatures])
+        creature_names = ', '.join([f'**{c.name}** (*{c.character_id}*)' for c in creatures])
         if len(creatures) > 1:
             await ctx.channel.send(f":door:  {creature_names} apparaissent dans <#{ctx.channel.id}>.")
             return
@@ -578,7 +582,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def time(self, ctx, *args):
         """Avance dans le temps et passe éventuellement au tour du personnage suivant."""
         await ctx.message.delete()
@@ -605,11 +609,11 @@ class Fallout(commands.Cog):
         ret = await self.request(f'campaign/{_channel.campaign_id}/next/', method='post', data=data)
         if ret is None:
             return
+        date = parse_date(ret['campaign']['current_game_date'])
         if seconds:
-            date = parse_date(ret['campaign']['current_game_date'])
             await ctx.channel.send(
-                f":hourglass:  **{args.hours:02}:{args.minutes:02}:{args.seconds:02}** se sont écoulés, "
-                f"nous sommes le **{date:%A %d %B %Y}** et il est **{date:%H:%M:%S}**...")
+                f":hourglass:  **{args.hours:02}:{args.minutes:02}:{args.seconds:02}** se sont écoulées...")
+        await ctx.channel.send(f":calendar:  Nous sommes le **{date:%A %d %B %Y}** et il est **{date:%H:%M:%S}**.")
         if not ret.get('character'):
             return
         try:
@@ -623,7 +627,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def give(self, ctx, *args):
         """Donne un ou plusieurs objets à un personnage donné."""
         await ctx.message.delete()
@@ -667,7 +671,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def loot(self, ctx, *args):
         """Ouvre un butin avec éventuellement un personnage donné."""
         await ctx.message.delete()
@@ -709,7 +713,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def say(self, ctx, *args):
         """Ouvre une fenêtre de dialogue riche."""
         await ctx.message.delete()
@@ -728,9 +732,7 @@ class Fallout(commands.Cog):
             await ctx.author.send(f"```{parser.message}```")
             return
 
-        from discord.embeds import Embed, EmptyEmbed
-        empty = EmptyEmbed
-        embed = Embed(title=args.title or empty, description=args.text, color=args.color or empty)
+        embed = Embed(title=args.title or EmptyEmbed, description=args.text, color=self.get_color(args.color))
         if args.portrait:
             embed.set_thumbnail(url=args.portrait)
         if args.image:
@@ -739,7 +741,7 @@ class Fallout(commands.Cog):
 
     @commands.command()
     @commands.guild_only()
-    @commands.has_role(ROLE)
+    @commands.has_role(DISCORD_ADMIN_ROLE)
     async def xp(self, ctx, *args):
         """Ajoute de l'expérience à un ou plusieurs personnages."""
         await ctx.message.delete()
@@ -847,6 +849,8 @@ class Fallout(commands.Cog):
         if not _user.player_id:
             ret = await self.request('player/', method='post', data=dict(
                 username=_user.id, nickname=_user.name, password=uuid.uuid4().hex))
+            if not ret:
+                raise Exception(f"Unable to retrieve data from backend.")
             _user.player_id = ret['id']
             _user.save(only=('player_id',))
         if (user.nick or user.name) != _user.name:
@@ -927,12 +931,28 @@ class Fallout(commands.Cog):
         value = value.strip().lower()
         return enum.get(value, value if default else None)
 
+    def has_role(self, member, target=DISCORD_ADMIN_ROLE):
+        for role in member.roles:
+            if role.name == target:
+                return True
+        return False
+
+    def get_color(self, code):
+        if not code:
+            return EmptyEmbed
+        code = code.lower()
+        color = getattr(Colour, code, lambda: EmptyEmbed)()
+        if not color and any(c in '0123456789abcdef' for c in code) and len(code) == 6:
+            color = int(code, 16)
+        return color
+
 
 if __name__ == '__main__':
     locale.setlocale(locale.LC_ALL, DISCORD_LOCALE)
     db.create_tables((Channel, User))
     intents = Intents.default()
     intents.members = True
+    intents.presences = True
     bot = commands.Bot(command_prefix=DISCORD_OPERATOR, intents=intents)
     bot.add_cog(Fallout(bot))
     bot.run(DISCORD_TOKEN)
