@@ -614,7 +614,7 @@ class Fallout(commands.Cog):
             await ctx.author.send(f"```{parser.message}```")
             return
 
-        def proceed(_channel):
+        async def proceed(_channel):
             channel = _channel.channel
             seconds = int(timedelta(seconds=args.seconds, minutes=args.minutes, hours=args.hours).total_seconds())
             data = dict(resting=args.resting, reset=not args.turn, seconds=seconds)
@@ -640,12 +640,12 @@ class Fallout(commands.Cog):
         if args.all:
             for _channel in Channel.select().where(Channel.campaign_id.is_null(False)):
                 _channel.channel = self.bot.get_channel(_channel.id)
-                proceed(_channel)
+                await proceed(_channel)
         else:
             _channel = await self.get_channel(ctx.channel, user)
             if not _channel or not _channel.campaign_id:
                 return
-            proceed(_channel)
+            await proceed(_channel)
 
     @commands.command()
     @commands.guild_only()
