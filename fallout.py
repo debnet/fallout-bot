@@ -75,6 +75,7 @@ class Creature:
     name: str
     character_id: int
     campaign_id: int
+    my_channel_id: int = 0
 
 
 class Parser(argparse.ArgumentParser):
@@ -348,16 +349,18 @@ class Fallout(commands.Cog):
         if new_channel.members:
             deleted_messages = await new_channel.purge()
             if deleted_messages:
-                transcript = await chat_exporter.raw_export(new_channel, deleted_messages, 'Europe/Paris')
+                transcript = await chat_exporter.raw_export(new_channel, deleted_messages, set_timezone='Europe/Paris')
                 if transcript:
-                    for member in new_channel.members:
-                        if member.bot:
+                    for player in players_in_channel:
+                        if not player.my_channel_id:
                             continue
-                        file = File(io.BytesIO(transcript.encode()), filename=f'{new_channel.name}.html')
-                        await member.send(
-                            f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
-                            f"les messages du canal ont été purgés par soucis de discrétion.\n"
-                            f":watch:  Vous pouvez retrouver l'historique des messages ci-dessous :", file=file)
+                        channel = self.bot.get_channel(player.my_channel_id)
+                        if channel:
+                            file = File(io.BytesIO(transcript.encode()), filename=f'{new_channel.name}.html')
+                            await channel.send(
+                                f":door:  Un ou plusieurs joueurs sont entrés dans **#{new_channel.name}**, "
+                                f"les messages du canal ont été purgés par soucis de discrétion.\n"
+                                f":watch:  Vous pouvez retrouver l'historique des messages ci-dessous :", file=file)
         arriving_users, leaving_users = [], {}
         for player_name in args.players:
             player = await self.get_user(player_name)
@@ -367,6 +370,15 @@ class Fallout(commands.Cog):
             if player and player.channel_id:
                 old_channel = self.bot.get_channel(player.channel_id)
                 if old_channel:
+                    if player.my_channel_id:
+                        channel = self.bot.get_channel(player.my_channel_id)
+                        transcript = await chat_exporter.export(old_channel, set_timezone='Europe/Paris')
+                        if channel and transcript:
+                            file = File(io.BytesIO(transcript.encode()), filename=f'{old_channel.name}.html')
+                            await channel.send(
+                                f":door:  Vous avez été déplacé de **#{old_channel.name}** "
+                                f"vers **#{new_channel.name}**.\n"
+                                f":watch:  Vous pouvez retrouver l'historique des messages ci-dessous :", file=file)
                     await old_channel.set_permissions(player.user, overwrite=None)
                     leaving_users.setdefault(old_channel.id, []).append(player)
             player.channel_id = new_channel.id
@@ -596,34 +608,44 @@ class Fallout(commands.Cog):
         parser.add_argument('--hours', '-H', type=int, default=0, help="Nombre de minutes écoulées")
         parser.add_argument('--sleep', '-s', dest='resting', action='store_true', default=False, help="Repos ?")
         parser.add_argument('--turn', '-t', action='store_true', default=False, help="Tour suivant ?")
+        parser.add_argument('--all', '-a', action='store_true', default=False, help="Pour tous ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
             return
 
-        _channel = await self.get_channel(ctx.channel, user)
-        if not _channel or not _channel.campaign_id:
-            return
-        seconds = int(timedelta(seconds=args.seconds, minutes=args.minutes, hours=args.hours).total_seconds())
-        data = dict(resting=args.resting, reset=not args.turn, seconds=seconds)
-        ret = await self.request(f'campaign/{_channel.campaign_id}/next/', method='post', data=data)
-        if ret is None:
-            return
-        date = parse_date(ret['campaign']['current_game_date'])
-        if seconds:
-            await ctx.channel.send(
-                f":hourglass:  **{args.hours:02}:{args.minutes:02}:{args.seconds:02}** se sont écoulées...")
-        await ctx.channel.send(f":calendar:  Nous sommes le **{date:%A %d %B %Y}** et il est **{date:%H:%M:%S}**.")
-        if not ret.get('character'):
-            return
-        try:
-            _user = User.get(User.character_id == ret['character']['id'])
-            await ctx.channel.send(
-                f":repeat:  C'est désormais au tour de **<@{_user.id}>**.")
-        except:
-            character = ret['character']
-            await ctx.channel.send(
-                f":repeat:  C'est désormais au tour de **{character['name']}** ({character['id']}).")
+        def proceed(_channel):
+            channel = _channel.channel
+            seconds = int(timedelta(seconds=args.seconds, minutes=args.minutes, hours=args.hours).total_seconds())
+            data = dict(resting=args.resting, reset=not args.turn, seconds=seconds)
+            ret = await self.request(f'campaign/{_channel.campaign_id}/next/', method='post', data=data)
+            if ret is None:
+                return
+            date = parse_date(ret['campaign']['current_game_date'])
+            if seconds:
+                await channel.send(
+                    f":hourglass:  **{args.hours:02}:{args.minutes:02}:{args.seconds:02}** se sont écoulées...")
+            await ctx.channel.send(f":calendar:  Nous sommes le **{date:%A %d %B %Y}** et il est **{date:%H:%M:%S}**.")
+            if not ret.get('character'):
+                return
+            try:
+                _user = User.get(User.character_id == ret['character']['id'])
+                await channel.send(
+                    f":repeat:  C'est désormais au tour de **<@{_user.id}>**.")
+            except:
+                character = ret['character']
+                await channel.send(
+                    f":repeat:  C'est désormais au tour de **{character['name']}** ({character['id']}).")
+
+        if args.all:
+            for _channel in Channel.select().where(Channel.campaign_id.is_null(False)):
+                _channel.channel = self.bot.get_channel(_channel.id)
+                proceed(_channel)
+        else:
+            _channel = await self.get_channel(ctx.channel, user)
+            if not _channel or not _channel.campaign_id:
+                return
+            proceed(_channel)
 
     @commands.command()
     @commands.guild_only()
