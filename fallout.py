@@ -111,26 +111,6 @@ class Fallout(commands.Cog):
         0: ':zero:', 1: ':one:', 2: ':two:', 3: ':three:', 4: ':four:', 5: ':five:',
         6: ':six:', 7: ':seven:', 8: ':eight:', 9: ':nine:', 10: ':keycap_ten:'}
     STATUS = {(0, 0): ':warning:', (1, 0): ':ok:', (0, 1): ':skull:', (1, 1): ':trophy:'}
-    DAMAGE_ICONS = {
-        'normal': ':muscle:',
-        'laser': ':sparkler:',
-        'plasma': ':sparkle:',
-        'explosive': ':boom:',
-        'fire': ':fire:',
-        'poison': ':biohazard:',
-        'radiation': ':radioactive:',
-        'gas_contact': ':cloud:',
-        'gas_inhaled': ':cloud:',
-        'raw': ':skull:',
-        'thirst': ':arrow_up: :droplet:',
-        'hunger': ':arrow_up: :meat_on_bone:',
-        'sleep': ':arrow_up: :zzz:',
-        'heal_thirst': ':arrow_down: :droplet:',
-        'heal_hunger': ':arrow_down: :meat_on_bone:',
-        'heal_sleep': ':arrow_down: :zzz:',
-        'heal': ':heart:',
-        'heal_rad': ':syringue:',
-    }
     SPECIAL = {
         ('s', 'str', 'for', 'force'): 'strength',
         ('p', 'per'): 'perception',
@@ -485,7 +465,7 @@ class Fallout(commands.Cog):
                 await ctx.author.send(
                     f":warning:  Une erreur s'est produite pendant l'exécution de la commande `{command}`.")
                 return
-            message = f"{self.DAMAGE_ICONS[args.damage_type]}  <@{player.id}> a reçu {ret['label']}"
+            message = f"{ret['icon']}  <@{player.id}> a reçu {ret['label']}"
             await ctx.channel.send(message)
 
     @commands.command()
