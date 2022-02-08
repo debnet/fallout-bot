@@ -177,6 +177,8 @@ class Fallout(commands.Cog):
         ('hs', 'dormir'): 'heal_sleep',
         ('+', 'soin'): 'heal',
         ('hr',): 'heal_rad',
+        ('gain', 'money', 'argent'): 'add_money',
+        ('loss', 'perte'): 'remove_money',
     }
     DAMAGES = {k: v for ks, v in DAMAGES.items() for k in ks + (v,)}
 
