@@ -1158,6 +1158,7 @@ class Fallout(commands.Cog):
     @commands.guild_only()
     @commands.has_role(DISCORD_ADMIN_ROLE)
     async def purge(self, ctx):
+        await ctx.message.delete()
         players_in_channel = User.select().where(User.channel == ctx.channel.id)
         deleted_messages = await ctx.channel.purge()
         if deleted_messages:
