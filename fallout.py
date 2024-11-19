@@ -413,7 +413,7 @@ class Fallout(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        chat_exporter.init_exporter(self.bot)
+        pass  # chat_exporter.init_exporter(self.bot)
 
     @commands.Cog.listener()
     async def on_member_update(self, before, after):
@@ -1392,7 +1392,7 @@ async def main():
     locale.setlocale(locale.LC_ALL, DISCORD_LOCALE)
     db.create_tables((Channel, User))
     bot = commands.Bot(command_prefix=DISCORD_OPERATOR, intents=Intents.all())
-    await bot.add_cog(Fallout(bot))
+    bot.add_cog(Fallout(bot))
     await bot.start(DISCORD_TOKEN)
 
 
