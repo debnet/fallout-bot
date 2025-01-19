@@ -926,6 +926,7 @@ class Fallout(commands.Cog):
         parser.add_argument("--sleep", "-s", dest="resting", action="store_true", default=False, help="Repos ?")
         parser.add_argument("--turn", "-t", action="store_true", default=False, help="Tour suivant ?")
         parser.add_argument("--all", "-a", action="store_true", default=False, help="Pour tous ?")
+        parser.add_argument("--reason", "-r", type=str, help="Reason")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -940,6 +941,8 @@ class Fallout(commands.Cog):
                 return
             date = parse_date(ret["campaign"]["current_game_date"])
             messages = []
+            if args.reason:
+                messages.append(f"> {args.reason}\n")
             if seconds:
                 messages.append(f"⌛ **{args.hours:02}:{args.minutes:02}:{args.seconds:02}** se sont écoulées !")
             messages.append(f"📅 Nous sommes désormais le **{date:%A %d %B %Y}** et il est **{date:%H:%M:%S}**.")
@@ -1117,6 +1120,7 @@ class Fallout(commands.Cog):
         parser = Parser(prog=command, description="Ajoute de l'expérience à un ou plusieurs personnages.")
         parser.add_argument("amount", type=int, help="Quantité d'expérience")
         parser.add_argument("players", metavar="player", type=str, nargs="+", help="Nom du joueur")
+        parser.add_argument("--reason", "-r", type=str, help="Raison")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -1140,7 +1144,8 @@ class Fallout(commands.Cog):
                 embed = Embed(
                     title=f"🆙 Passage de niveau !",
                     description=(
-                        f"<@{player.id}> a gagné **{xp}** points d'expérience et est passé au niveau **{level}** !"
+                        f"> {args.reason}\n" if args.reason else "" +
+                        f"<@{player.id}> a gagné **{xp}** points d'expérience et est passé au niveau **{level}** !\n"
                         f"Il faut désormais **{req_xp}** points d'expérience pour passer au niveau **{level+1}**."
                     ),
                 )
@@ -1148,6 +1153,7 @@ class Fallout(commands.Cog):
                 embed = Embed(
                     title=f"⬆️ Gain d'expérience !",
                     description=(
+                        f"> {args.reason}\n" if args.reason else "" +
                         f"<@{player.id}> a gagné **{xp}** points d'expérience !\n"
                         f"Il a encore besoin de **{req_xp}** points d'expérience pour passer au niveau **{level+1}**."
                     ),
@@ -1220,6 +1226,7 @@ class Fallout(commands.Cog):
             is_player=True,
             has_stats=True,
             has_needs=True,
+            can_levelup=True,
             **kwargs,
         )
         ret = await self.request("character/", method="post", data=data)
@@ -1392,7 +1399,7 @@ async def main():
     locale.setlocale(locale.LC_ALL, DISCORD_LOCALE)
     db.create_tables((Channel, User))
     bot = commands.Bot(command_prefix=DISCORD_OPERATOR, intents=Intents.all())
-    bot.add_cog(Fallout(bot))
+    await bot.add_cog(Fallout(bot))
     await bot.start(DISCORD_TOKEN)
 
 
