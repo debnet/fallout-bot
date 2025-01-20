@@ -1226,7 +1226,9 @@ class Fallout(commands.Cog):
             is_player=True,
             has_stats=True,
             has_needs=True,
-            can_levelup=True,
+            enable_levelup=True,
+            enable_stats=True,
+            enable_logs=True,
             **kwargs,
         )
         ret = await self.request("character/", method="post", data=data)
