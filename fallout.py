@@ -1401,10 +1401,7 @@ async def main():
     locale.setlocale(locale.LC_ALL, DISCORD_LOCALE)
     db.create_tables((Channel, User))
     bot = commands.Bot(command_prefix=DISCORD_OPERATOR, intents=Intents.all())
-    try:
-        await bot.add_cog(Fallout(bot))
-    except:  # noqa: weird asyncio error
-        bot.add_cog(Fallout(bot))
+    await bot.add_cog(Fallout(bot))
     await bot.start(DISCORD_TOKEN)
 
 
