@@ -457,7 +457,7 @@ class Fallout(commands.Cog):
             await ctx.author.send(f"⛔ Vous avez déjà créé votre personnage.")
             return
         data = vars(args).copy()
-        if sum(data[stats] for stats in self.SPECIAL.values()) != 40 and not self.has_role(ctx.author):
+        if sum(data[stats] for stats in set(self.SPECIAL.values())) != 40 and not self.has_role(ctx.author):
             await ctx.author.send(f"⛔ La somme totale de vos statistiques doit valoir exactement **40**.")
             return
         data["tag_skills"] = []
@@ -1401,7 +1401,10 @@ async def main():
     locale.setlocale(locale.LC_ALL, DISCORD_LOCALE)
     db.create_tables((Channel, User))
     bot = commands.Bot(command_prefix=DISCORD_OPERATOR, intents=Intents.all())
-    await bot.add_cog(Fallout(bot))
+    try:
+        await bot.add_cog(Fallout(bot))
+    except:  # noqa: weird asyncio error
+        bot.add_cog(Fallout(bot))
     await bot.start(DISCORD_TOKEN)
 
 
