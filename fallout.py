@@ -1065,7 +1065,9 @@ class Fallout(commands.Cog):
             else:
                 description = f"**{loot_name}** a été ouvert !"
             content = []
-            for res in ret:
+            if money := ret["money"]:
+                description = f"{description}\nVous y trouvez **{money} $** :moneybag: !"
+            for res in ret["loots"]:
                 id, name, quantity, condition = res["id"], res["item"]["name"], res["quantity"], res["condition"]
                 if condition:
                     content.append(f"> {name} (x{quantity}, état {int(condition * 100)}%)")
