@@ -634,6 +634,7 @@ class Fallout(commands.Cog):
         parser.add_argument("--modifier", "-m", metavar="MOD", default=0, type=int, help="Modificateur")
         parser.add_argument("--xp", "-x", action="store_true", default=False, help="Expérience ?")
         parser.add_argument("--reason", "-r", type=str, help="Explication")
+        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -653,10 +654,11 @@ class Fallout(commands.Cog):
                 return
             success, critical, stats, label = ret["success"], ret["critical"], ret["stats_display"], ret["long_label"]
             experience, level_up, level = ret["experience"], ret["level_up"], ret["character"]["level"]
+            who = f"<@{player.id}>" if args.tag else f"**{ret["character"]["name"]}**"
             if args.reason:
-                message = f"> {args.reason}\n\n{self.STATUS[success, critical]}  <@{player.id}> : {label}"
+                message = f"> {args.reason}\n\n{self.STATUS[success, critical]}  {who} : {label}"
             else:
-                message = f"{self.STATUS[success, critical]}  <@{player.id}> : {label}"
+                message = f"{self.STATUS[success, critical]}  {who} : {label}"
             if level_up:
                 message = f"{message}\n🆙 Passage au niveau **{level}** !"
             elif experience:
@@ -720,6 +722,7 @@ class Fallout(commands.Cog):
         parser.add_argument("--simulation", "-s", action="store_true", default=False, help="Simulation ?")
         parser.add_argument("--reason", "-r", type=str, help="Explication")
         parser.add_argument("players", metavar="player", type=str, nargs="+", help="Nom du joueur")
+        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -738,10 +741,11 @@ class Fallout(commands.Cog):
             if ret is None:
                 await ctx.author.send(f"⚠️ Une erreur s'est produite pendant l'exécution de la commande `{command}`.")
                 return
+            who = f"<@{player.id}>" if args.tag else f"**{ret["character"]["name"]}**"
             if args.reason:
-                message = f"> {args.reason}\n\n<@{player.id}> a reçu **{ret['long_label']}**"
+                message = f"> {args.reason}\n\n{who} a reçu **{ret['long_label']}**"
             else:
-                message = f"<@{player.id}> a reçu **{ret['long_label']}**"
+                message = f"{who} a reçu **{ret['long_label']}**"
             message = f"{message} et a été **tué** !" if ret["character"]["health"] <= 0 else f"{message}."
             # await ctx.channel.send(message)
             embed = Embed(
@@ -761,7 +765,7 @@ class Fallout(commands.Cog):
         command = f"{ctx.prefix}{ctx.command.name}"
         parser = Parser(prog=command, description="Fait s'affronter deux joueurs entre eux.")
         parser.add_argument("attacker", type=str, help="Joueur attaquant")
-        parser.add_argument("target", metavar="defender", type=str, help="Joueur défenseur")
+        parser.add_argument("defender", type=str, help="Joueur défenseur")
         parser.add_argument(
             "--range",
             "-r",
@@ -830,35 +834,36 @@ class Fallout(commands.Cog):
             default=False,
             help="Dégâts bruts ?",
         )
-        parser.add_argument(
-            "--simulation",
-            "-s",
-            action="store_true",
-            default=False,
-            help="Simulation ?",
-        )
+        parser.add_argument("--simulation", "-s", action="store_true", default=False, help="Simulation ?")
+        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
             return
 
         args.body_part = self.try_get(args.target_body_part, self.BODY_PARTS)
-        attacker, target = await self.get_user(args.attacker), await self.get_user(args.target)
-        if not attacker or not target or not attacker.character_id or not target.character_id:
+        attacker, defender = await self.get_user(args.attacker), await self.get_user(args.defender)
+        if not attacker or not defender or not attacker.character_id or not defender.character_id:
             await ctx.author.send(f"⚠️ Les joueurs sélectionnés ne peuvent combattre car ils n'ont pas de personnage.")
             return
         data = vars(args).copy()
         data.pop("attacker")
-        data["target"] = target.character_id
+        data["target"] = defender.character_id
         ret = await self.request(f"character/{attacker.character_id}/fight/", method="post", data=data)
         if ret is None:
             await ctx.author.send(f"⚠️ Une erreur s'est produite pendant l'exécution de la commande `{command}`.")
             return
-        attacker = f"**<@{attacker.id}>**" if attacker.id else f"**{attacker.name}** (*{attacker.character_id}*)"
-        target = f"**<@{target.id}>**" if target.id else f"**{target.name}** (*{target.character_id}*)"
+        if args.tag:
+            attacker = f"**<@{attacker.id}>**" if attacker.id else f"**{attacker.name}** (*{attacker.character_id}*)"
+            defender = f"**<@{defender.id}>**" if defender.id else f"**{defender.name}** (*{defender.character_id}*)"
+        else:
+            attacker_id, attacker_name = ret["attacker"]["id"], ret["attacker"]["name"]
+            defender_id, defender_name = ret["defender"]["id"], ret["defender"]["name"]
+            attacker = f"**{attacker_name}** (*{attacker_id}*)"
+            defender = f"**{defender_name}** (*{defender_id}*)"
         success, critical, label = ret["success"], ret["critical"], ret["long_label"]
         experience, level_up, level = ret["experience"], ret["level_up"], ret["character"]["level"]
-        message = f"{self.STATUS[success, critical]}  {attacker} vs. {target} : {label}"
+        message = f"{self.STATUS[success, critical]}  {attacker} vs. {defender} : {label}"
         if level_up:
             message = f"{message}\n🆙 Passage au niveau **{level}** !"
         elif experience:
@@ -927,6 +932,7 @@ class Fallout(commands.Cog):
         parser.add_argument("--turn", "-t", action="store_true", default=False, help="Tour suivant ?")
         parser.add_argument("--all", "-a", action="store_true", default=False, help="Pour tous ?")
         parser.add_argument("--reason", "-r", type=str, help="Reason")
+        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -949,7 +955,8 @@ class Fallout(commands.Cog):
             if ret.get("character"):
                 try:
                     _user = User.get(User.character_id == ret["character"]["id"])
-                    messages.append(f"🔁 C'est désormais au tour de **<@{_user.id}>**.")
+                    who = f"<@{_user.id}>" if args.tag else f"**{ret["character"]["name"]}**"
+                    messages.append(f"🔁 C'est désormais au tour de {who}.")
                 except:
                     character = ret["character"]
                     messages.append(f"🔁 C'est désormais au tour de **{character['name']}** ({character['id']}).")
@@ -983,6 +990,7 @@ class Fallout(commands.Cog):
         parser.add_argument("--condition", "-c", type=int, default=100, help="Etat de l'objet")
         parser.add_argument("--image", "-i", type=str, help="Image de l'objet")
         parser.add_argument("--silent", "-s", action="store_true", default=False, help="Pas de notification")
+        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -1011,9 +1019,10 @@ class Fallout(commands.Cog):
             await ctx.author.send(f"⚠️ Une erreur s'est produite pendant l'exécution de la commande `{OP}give`.")
             return
         if not silent:
+            who = f"<@{_user.id}>" if args.tag else f"**{ret["character"]["name"]}**"
             embed = Embed(
                 title=f"🎁 Nouvel objet trouvé !",
-                description=f"<@{_user.id}> a récupéré **{item_name}** (x{args.quantity}) !",
+                description=f"{who} a récupéré **{item_name}** (x{args.quantity}) !",
             )
             if args.image:
                 embed.set_image(url=args.image)
@@ -1035,6 +1044,7 @@ class Fallout(commands.Cog):
         parser.add_argument("loot", type=str, help="Nom ou identifiant du butin")
         parser.add_argument("--player", "-p", type=str, help="Joueur")
         parser.add_argument("--silent", "-s", action="store_true", default=False, help="Pas de notification")
+        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -1060,7 +1070,7 @@ class Fallout(commands.Cog):
         loot_id, loot_name = ret[0]["id"], ret[0]["name"]
         ret = await self.request(f"loottemplate/{loot_id}/open/", method="post", data=data)
         if not args.silent:
-            if _user:
+            if _user and args.tag:
                 description = f"**{loot_name}** a été ouvert par <@{_user.id}> !"
             else:
                 description = f"**{loot_name}** a été ouvert !"
@@ -1123,6 +1133,7 @@ class Fallout(commands.Cog):
         parser.add_argument("amount", type=int, help="Quantité d'expérience")
         parser.add_argument("players", metavar="player", type=str, nargs="+", help="Nom du joueur")
         parser.add_argument("--reason", "-r", type=str, help="Raison")
+        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -1142,12 +1153,14 @@ class Fallout(commands.Cog):
                 )
                 return
             req_xp, level, level_up = ret["required_experience"], ret["level"], ret["level_up"]
+            who = f"<@{player.id}>" if args.tag else f"**{ret["character"]["name"]}**"
             if level_up:
                 embed = Embed(
                     title=f"🆙 Passage de niveau !",
                     description=(
-                        f"> {args.reason}\n" if args.reason else "" +
-                        f"<@{player.id}> a gagné **{xp}** points d'expérience et est passé au niveau **{level}** !\n"
+                        f"> {args.reason}\n"
+                        if args.reason
+                        else "" + f"{who} a gagné **{xp}** points d'expérience et est passé au niveau **{level}** !\n"
                         f"Il faut désormais **{req_xp}** points d'expérience pour passer au niveau **{level+1}**."
                     ),
                 )
@@ -1155,8 +1168,9 @@ class Fallout(commands.Cog):
                 embed = Embed(
                     title=f"⬆️ Gain d'expérience !",
                     description=(
-                        f"> {args.reason}\n" if args.reason else "" +
-                        f"<@{player.id}> a gagné **{xp}** points d'expérience !\n"
+                        f"> {args.reason}\n"
+                        if args.reason
+                        else "" + f"{who} a gagné **{xp}** points d'expérience !\n"
                         f"Il a encore besoin de **{req_xp}** points d'expérience pour passer au niveau **{level+1}**."
                     ),
                 )
