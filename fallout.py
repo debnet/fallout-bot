@@ -633,8 +633,8 @@ class Fallout(commands.Cog):
         parser.add_argument("players", metavar="player", type=str, nargs="+", help="Nom du joueur")
         parser.add_argument("--modifier", "-m", metavar="MOD", default=0, type=int, help="Modificateur")
         parser.add_argument("--xp", "-x", action="store_true", default=False, help="Expérience ?")
-        parser.add_argument("--reason", "-r", type=str, help="Explication")
-        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
+        parser.add_argument("--reason", "-R", type=str, default="", help="Explication")
+        parser.add_argument("--tag", "-T", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -642,7 +642,6 @@ class Fallout(commands.Cog):
 
         args.stats = self.try_get(args.stats, self.STATS)
         data = vars(args).copy()
-        data.pop("reason")
         data.pop("players")
         for player_name in args.players:
             player = await self.get_user(player_name)
@@ -720,9 +719,9 @@ class Fallout(commands.Cog):
             help="Modificateur de résistance",
         )
         parser.add_argument("--simulation", "-s", action="store_true", default=False, help="Simulation ?")
-        parser.add_argument("--reason", "-r", type=str, help="Explication")
+        parser.add_argument("--reason", "-R", type=str, default="", help="Explication")
+        parser.add_argument("--tag", "-T", action="store_true", default=False, help="Mentionner ?")
         parser.add_argument("players", metavar="player", type=str, nargs="+", help="Nom du joueur")
-        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -731,7 +730,6 @@ class Fallout(commands.Cog):
         args.damage_type = self.try_get(args.damage_type, self.DAMAGES) if args.damage_type else "normal"
         args.body_part = self.try_get(args.body_part, self.BODY_PARTS) if args.body_part else None
         data = vars(args).copy()
-        data.pop("reason")
         data.pop("players")
         for player_name in args.players:
             player = await self.get_user(player_name)
@@ -931,8 +929,8 @@ class Fallout(commands.Cog):
         parser.add_argument("--sleep", "-s", dest="resting", action="store_true", default=False, help="Repos ?")
         parser.add_argument("--turn", "-t", action="store_true", default=False, help="Tour suivant ?")
         parser.add_argument("--all", "-a", action="store_true", default=False, help="Pour tous ?")
-        parser.add_argument("--reason", "-r", type=str, help="Reason")
-        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
+        parser.add_argument("--reason", "-R", type=str, default="", help="Raison")
+        parser.add_argument("--tag", "-T", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
@@ -1132,8 +1130,8 @@ class Fallout(commands.Cog):
         parser = Parser(prog=command, description="Ajoute de l'expérience à un ou plusieurs personnages.")
         parser.add_argument("amount", type=int, help="Quantité d'expérience")
         parser.add_argument("players", metavar="player", type=str, nargs="+", help="Nom du joueur")
-        parser.add_argument("--reason", "-r", type=str, help="Raison")
-        parser.add_argument("--tag", "-0", action="store_true", default=False, help="Mentionner ?")
+        parser.add_argument("--reason", "-R", type=str, default="", help="Raison")
+        parser.add_argument("--tag", "-T", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
         if parser.message:
             await ctx.author.send(f"```{parser.message}```")
