@@ -1151,7 +1151,7 @@ class Fallout(commands.Cog):
                 )
                 return
             req_xp, level, level_up = ret["required_experience"], ret["level"], ret["level_up"]
-            who = f"<@{player.id}>" if args.tag else f"**{ret["character"]["name"]}**"
+            who = f"<@{player.id}>" if args.tag else f"**{ret["name"]}**"
             if level_up:
                 embed = Embed(
                     title=f"🆙 Passage de niveau !",
