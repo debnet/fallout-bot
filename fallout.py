@@ -632,7 +632,7 @@ class Fallout(commands.Cog):
         parser.add_argument("stats", type=str, help="Nom ou code de la statistique")
         parser.add_argument("players", metavar="player", type=str, nargs="+", help="Nom du joueur")
         parser.add_argument("--modifier", "-m", metavar="MOD", default=0, type=int, help="Modificateur")
-        parser.add_argument("--xp", "-x", action="store_true", default=False, help="Expérience ?")
+        parser.add_argument("--xp", "-x", action="store_false", default=True, help="Pas d'expérience ?")
         parser.add_argument("--reason", "-R", type=str, default="", help="Explication")
         parser.add_argument("--tag", "-T", action="store_true", default=False, help="Mentionner ?")
         args = parser.parse_args(args)
