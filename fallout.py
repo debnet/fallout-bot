@@ -1152,13 +1152,12 @@ class Fallout(commands.Cog):
                 return
             req_xp, level, level_up = ret["required_experience"], ret["level"], ret["level_up"]
             who = f"<@{player.id}>" if args.tag else f"**{ret["name"]}**"
+            reason = f"> {args.reason}\n" if args.reason else ""
             if level_up:
                 embed = Embed(
                     title=f"🆙 Passage de niveau !",
                     description=(
-                        f"> {args.reason}\n"
-                        if args.reason
-                        else "" + f"{who} a gagné **{xp}** points d'expérience et est passé au niveau **{level}** !\n"
+                        f"{reason}{who} a gagné **{xp}** points d'expérience et est passé au niveau **{level}** !\n"
                         f"Il faut désormais **{req_xp}** points d'expérience pour passer au niveau **{level+1}**."
                     ),
                 )
@@ -1166,9 +1165,7 @@ class Fallout(commands.Cog):
                 embed = Embed(
                     title=f"⬆️ Gain d'expérience !",
                     description=(
-                        f"> {args.reason}\n"
-                        if args.reason
-                        else "" + f"{who} a gagné **{xp}** points d'expérience !\n"
+                        f"{reason}{who} a gagné **{xp}** points d'expérience !\n"
                         f"Il a encore besoin de **{req_xp}** points d'expérience pour passer au niveau **{level+1}**."
                     ),
                 )
